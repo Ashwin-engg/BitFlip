@@ -1,19 +1,13 @@
-// main.js
-// Backend Entry Point
-// CNC AI Monitoring System
-// ================================
+require("dotenv").config();
 
-// Core imports
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
-require("dotenv").config();
-
-// WebSocket
 const { Server } = require("socket.io");
 
-// Config imports
 const connectDB = require("./config/db");
+require("./config/influx"); // initialize influx
+
 const initMQTT = require("./services/mqttSubscriber");
 
 // Routes
@@ -21,40 +15,34 @@ const equipmentRoutes = require("./routes/equipment.routes");
 const sensorRoutes = require("./routes/sensor.routes");
 const predictionRoutes = require("./routes/prediction.routes");
 
-// -------------------------------
-// App & Server setup
-// -------------------------------
 const app = express();
 const server = http.createServer(app);
-
-// WebSocket initialization
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-  },
-});
-
-// Make socket available globally
-global.io = io;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Database Connection
-connectDB();
+// WebSocket
+const io = new Server(server, {
+  cors: { origin: "*" },
+});
 
-// API Routes
+global.io = io;
+
+// CONNECT DATABASES
+connectDB(); // MongoDB
+
+// ROUTES
 app.use("/api/equipment", equipmentRoutes);
 app.use("/api/sensors", sensorRoutes);
 app.use("/api/predict", predictionRoutes);
 
-// Health check
+// Health
 app.get("/", (req, res) => {
-  res.send("🚀 CNC AI Monitoring Backend is running");
+  res.send("🚀 CNC AI Monitoring Backend Running");
 });
 
-// WebSocket Events
+// WebSocket connection
 io.on("connection", (socket) => {
   console.log("🟢 Frontend connected:", socket.id);
 
@@ -63,10 +51,16 @@ io.on("connection", (socket) => {
   });
 });
 
-// Start MQTT Subscriber
-initMQTT();
+// MQTT INIT
+if (process.env.MQTT_ENABLED === "true") {
+  initMQTT();
+  console.log("📡 MQTT Enabled");
+} else {
+  console.log("⚡ MQTT Disabled (Safe Mode)");
+}
 
-// Start Server
+// START SERVER
+
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
